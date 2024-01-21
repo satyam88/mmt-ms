@@ -50,6 +50,8 @@ pipeline {
             steps {
                 echo 'Docker Image Scanning Started'
                 sh 'docker --version'
+                sh 'git --version'
+                sh 'java --version'
                 echo 'Docker Image Scanning Started'
             }
         }
