@@ -46,15 +46,6 @@ pipeline {
                 }
             }
         }
-        stage('Docker Image Scanning') {
-            steps {
-                echo 'Docker Image Scanning Started'
-                sh 'docker --version'
-                sh 'git --version'
-                sh 'java --version'
-                echo 'Docker Image Scanning Started'
-            }
-        }
         stage('Docker push to Docker Hub') {
             steps {
                 script {
@@ -62,7 +53,7 @@ pipeline {
                         echo "Push Docker Image to DockerHub: In Progress"
                         sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
                         sh "docker push ${imageName}"
-                        echo "Push Docker Image to DockerHub: Completed"
+                        echo "Push DDocker Image to DockerHub: Completed"
                     }
                 }
             }
