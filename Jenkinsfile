@@ -53,7 +53,7 @@ pipeline {
                  echo "List the docker images present in local"
                  docker images
                  echo "Tagging the Docker Image: In Progress"
-                 docker tag dev-mmt-ms-v.1.${BUILD_NUMBER}:latest 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}
+                 docker tag mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER} 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}
                  echo "Tagging the Docker Image: Completed"
                  echo "Push Docker Image to ECR : In Progress"
                  docker push 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}
