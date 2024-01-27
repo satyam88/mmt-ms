@@ -1,14 +1,9 @@
 pipeline {
-    agent any
-
     options {
         buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
     }
 
-    environment {
-        DOCKER_HUB_CRED = credentials('dockerhubCred')
-        ECR_CRED = credentials('ecr:ap-south-1:ecr-credentials')
-    }
+    agent any
 
     tools {
         maven 'maven_3.9.4'
@@ -31,57 +26,55 @@ pipeline {
         }
         stage('Code Package') {
             steps {
-                echo 'Creating War Artifact'
+                echo 'Creating Jar Artifact'
                 sh 'mvn clean package'
-                echo 'Creating War Artifact Completed'				
+                echo 'Creating jar Artifact done'
             }
         }
         stage('Building & Tag Docker Image') {
             steps {
-                script {
-                    def imageName = "satyam88/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}"
-                    echo "Starting Building Docker Image: ${imageName}"
-                    sh "docker build -t ${imageName} ."
-                    echo 'Completed Building Docker Image'
-                }
+                echo 'Starting Building Docker Image'
+                sh 'docker build -t satyam88/mmt-ms .'
+                sh 'docker build -t mmt-ms .'
+                echo 'Completed  Building Docker Image'
             }
         }
         stage('Docker Image Scanning') {
             steps {
                 echo 'Docker Image Scanning Started'
-                sh 'docker --version'
-                sh 'git --version'
-                sh 'java --version'
+                sh 'java -version'
                 echo 'Docker Image Scanning Started'
             }
         }
-        stage('Docker push to Docker Hub') {
-            steps {
-                script {
-                    withDockerRegistry([credentialsId: 'docker.io', url: 'https://index.docker.io/v1/', credentials: [$class: 'UsernamePasswordMultiBinding', credentialsId: "${DOCKER_HUB_CRED}", usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD']]) {
-                        echo "Push Docker Image to DockerHub: In Progress"
-                        sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
-                        sh "docker push ${imageName}"
-                        echo "Push Docker Image to DockerHub: Completed"
-                    }
-                }
+        stage(' Docker push to Docker Hub') {
+           steps {
+              script {
+                 withCredentials([string(credentialsId: 'dockerhubCred', variable: 'dockerhubCred')]){
+                 sh 'docker login docker.io -u satyam88 -p ${dockerhubCred}'
+                 echo "Push Docker Image to DockerHub : In Progress"
+                 sh 'docker push satyam88/mmt-ms:latest'
+                 echo "Push Docker Image to DockerHub : In Progress"
+                 }
+              }
             }
         }
-        stage('Docker Image Push to Amazon ECR') {
-            steps {
-                script {
-                    echo "Tagging the Docker Image: In Progress"
-                    def ecrImageName = "559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}"
-                    sh "docker tag ${imageName} ${ecrImageName}"
-                    echo "Tagging the Docker Image: Completed"
-
-                    withDockerRegistry([credentialsId: 'ecr:ap-south-1:ecr-credentials', url: "https://559220132560.dkr.ecr.ap-south-1.amazonaws.com"]) {
-                        echo "Push Docker Image to ECR: In Progress"
-                        sh "docker push ${ecrImageName}"
-                        echo "Push Docker Image to ECR: Completed"
-                    }
-                }
-            }
+        stage(' Docker Image Push to Amazon ECR') {
+           steps {
+              script {
+                 withDockerRegistry([credentialsId:'ecr:ap-south-1:ecr-credentials', url:"https://559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms"]){
+                 sh """
+                 echo "List the docker images present in local"
+                 docker images
+                 echo "Tagging the Docker Image: In Progress"
+                 docker tag mmt-ms:latest 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:latest
+                 echo "Tagging the Docker Image: Completed"
+                 echo "Push Docker Image to ECR : In Progress"
+                 docker push 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:latest
+                 echo "Push Docker Image to ECR : Completed"
+                 """
+                 }
+              }
+           }
         }
-    }
-}        
+	}
+}
