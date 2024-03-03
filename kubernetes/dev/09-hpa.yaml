@@ -1,0 +1,17 @@
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dev-mmt-hpa
+  namespace: dev
+  labels:
+    env: dev
+    app: mmt-ms
+    layer: frontend
+spec:
+  maxReplicas: 10
+  minReplicas: 1
+  scaleTargetRef:
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    name: dev-mmt-deployment
+  targetCPUUtilizationPercentage: 80

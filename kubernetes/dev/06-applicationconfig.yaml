@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dev-mmt-application-config
+  namespace: dev
+  labels:
+    env: dev
+    app: mmt-ms
+    layer: frontend
+data:
+  application.properties: |-

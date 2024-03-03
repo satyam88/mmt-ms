@@ -24,24 +24,10 @@ pipeline {
                 echo 'Junit Test case check Completed!'
             }
         }
-        stage('Sonarqube Code Quality') {
-            environment {
-                scannerHome = tool 'SonarQubeScanner'
-            }
-            steps {
-                withSonarQubeEnv('sonar-server') {
-                    sh "${scannerHome}/bin/sonar-scanner"
-                    sh 'mvn sonar:sonar'
-                }
-                timeout(time: 10, unit: 'MINUTES') {
-                    waitForQualityGate abortPipeline: true
-                }
-            }
-        }
         stage('Code Package') {
             steps {
-                echo 'Creating Jar Artifact'
-                sh 'mvn clean package'
+                echo 'Creating Jar Artifact with auto-incrementing version'
+                sh 'mvn versions:set -DgenerateBackupPoms=false -DnewVersion=1.0.${BUILD_NUMBER} && mvn clean package'
                 echo 'Creating jar Artifact done'
             }
         }
@@ -52,43 +38,69 @@ pipeline {
                 echo 'Completed  Building Docker Image'
             }
         }
-        stage('Docker Image Scanning') {
+        stage('Docker Image Push to Amazon ECR') {
             steps {
-                echo 'Docker Image Scanning Started'
-                sh 'java -version'
-                echo 'Docker Image Scanning Started'
+                script {
+                    withDockerRegistry([credentialsId:'ecr:ap-south-1:ecr-credentials', url:"https://559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms"]){
+                        sh """
+                        echo "List the docker images present in local"
+                        docker images
+                        echo "Tagging the Docker Image: In Progress"
+                        docker tag mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER} 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}
+                        echo "Tagging the Docker Image: Completed"
+                        echo "Push Docker Image to ECR : In Progress"
+                        docker push 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}
+                        echo "Push Docker Image to ECR : Completed"
+                        """
+                    }
+                }
             }
         }
-        stage(' Docker Image Push to Amazon ECR') {
-           steps {
-              script {
-                 withDockerRegistry([credentialsId:'ecr:ap-south-1:ecr-credentials', url:"https://559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms"]){
-                 sh """
-                 echo "List the docker images present in local"
-                 docker images
-                 echo "Tagging the Docker Image: In Progress"
-                 docker tag mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER} 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}
-                 echo "Tagging the Docker Image: Completed"
-                 echo "Push Docker Image to ECR : In Progress"
-                 docker push 559220132560.dkr.ecr.ap-south-1.amazonaws.com/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}
-                 echo "Push Docker Image to ECR : Completed"
-                 """
-                 }
-              }
-           }
-        }
-        stage('Upload the docker Image to Nexus') {
-           steps {
-              script {
-                 withCredentials([usernamePassword(credentialsId: 'nexus-credentials', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]){
-                 sh 'docker login http://13.201.193.145:8085/repository/mmt-ms/ -u admin -p ${PASSWORD}'
-                 echo "Push Docker Image to Nexus : In Progress"
-                 sh 'docker tag mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER} 13.201.193.145:8085/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}'
-                 sh 'docker push 13.201.193.145:8085/mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}'
-                 echo "Push Docker Image to Nexus : Completed"
-                 }
-              }
+        stage('Delete Docker Image from Local') {
+            steps {
+                script {
+                    sh "docker rmi mmt-ms:dev-mmt-ms-v.1.${BUILD_NUMBER}"
+                }
             }
         }
-	}
+        stage('Deploy app to dev env') {
+            when {
+                expression {
+                    env.BRANCH_NAME == 'dev'
+                }
+            }
+            steps {
+                script {
+                    def devenvManifest = 'kubernetes/dev/'
+                    def yamlFile = 'kubernetes/dev/05-deployment.yaml'
+                    sh "sed -i 's/<latest>/dev-booking-v.1.${BUILD_NUMBER}/g' ${yamlFile}"
+                    sh "kubectl apply -f ${devenvManifest}"
+                }
+            }
+        }
+        stage('Deploy app to preprod env') {
+            when {
+                expression {
+                    env.BRANCH_NAME == 'preprod'
+                }
+            }
+            steps {
+                script {
+                    sh 'kubectl apply -f kubernetes/preprod'
+                }
+            }
+        }
+        stage('Deploy app to prod env') {
+            when {
+                expression {
+                    env.BRANCH_NAME == 'prod'
+                }
+            }
+            steps {
+                script {
+                    sh 'kubectl apply -f kubernetes/prod'
+                }
+            }
+        }
+    }
 }
